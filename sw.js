@@ -1,4 +1,4 @@
-const CACHE_NAME = "meetnote-ai-v1";
+const CACHE_NAME = "meetnote-ai-v2";
 const ASSETS = [
   "./",
   "./index.html",
