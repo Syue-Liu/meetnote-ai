@@ -1,0 +1,19 @@
+{
+  "name": "MeetNote AI",
+  "short_name": "MeetNote",
+  "description": "AI meeting recorder, transcript, decisions, and action items.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7f4",
+  "theme_color": "#15201d",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
