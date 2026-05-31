@@ -309,6 +309,12 @@ select:focus {
   border-top: 1px solid #edf2ef;
 }
 
+.speaker-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .speaker-item:first-child {
   border-top: 0;
 }
@@ -548,6 +554,52 @@ select:focus {
 .toast.show {
   transform: translateY(0);
   opacity: 1;
+}
+
+.recording-item {
+  display: grid;
+  gap: 8px;
+  padding: 11px 0;
+  border-top: 1px solid #edf2ef;
+}
+
+.recording-item:first-child {
+  border-top: 0;
+}
+
+.recording-item strong {
+  font-size: 14px;
+}
+
+.recording-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.recording-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.recording-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.recording-actions audio {
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .empty-state {
