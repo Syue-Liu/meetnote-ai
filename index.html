@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MeetNote AI</title>
+    <meta name="theme-color" content="#15201d" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="會議側欄">
+        <div class="brand">
+          <div class="brand-mark">M</div>
+          <div>
+            <p class="eyebrow">MeetNote AI</p>
+            <h1>會議逐字稿</h1>
+          </div>
+        </div>
+
+        <section class="panel session-panel">
+          <div class="session-title">
+            <span>產品週會</span>
+            <span class="status-pill" id="statusPill">待命</span>
+          </div>
+          <label class="field">
+            <span>會議名稱</span>
+            <input id="meetingTitle" value="產品週會 - Q3 Roadmap" />
+          </label>
+          <label class="field">
+            <span>語言</span>
+            <select id="languageSelect">
+              <option value="zh-TW">繁體中文</option>
+              <option value="en-US">English</option>
+              <option value="ja-JP">日本語</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="panel meter-panel">
+          <div class="record-circle" id="recordCircle">
+            <div class="record-dot"></div>
+            <strong id="timer">00:00</strong>
+          </div>
+          <canvas id="waveform" width="280" height="84" aria-label="音訊波形"></canvas>
+          <div class="control-grid">
+            <button class="primary-button" id="recordButton" data-testid="record-button">
+              <span class="icon">●</span>
+              <span>開始錄音</span>
+            </button>
+            <button class="ghost-button" id="demoButton" data-testid="demo-button">
+              <span class="icon">▶</span>
+              <span>播放範例</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel compact-list">
+          <div class="panel-heading">
+            <h2>講者</h2>
+            <button class="icon-button" id="addSpeakerButton" title="新增講者">＋</button>
+          </div>
+          <div id="speakerList"></div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Live workspace</p>
+            <h2 id="workspaceTitle">產品週會 - Q3 Roadmap</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button small" id="exportButton" data-testid="export-button">匯出 Markdown</button>
+            <button class="primary-button small" id="summarizeButton" data-testid="summarize-button">產生摘要</button>
+          </div>
+        </header>
+
+        <section class="transcript-shell">
+          <div class="transcript-toolbar">
+            <div class="search-wrap">
+              <span>⌕</span>
+              <input id="searchInput" placeholder="搜尋逐字稿" />
+            </div>
+            <div class="segmented" role="group" aria-label="逐字稿篩選">
+              <button class="active" data-filter="all">全部</button>
+              <button data-filter="decision">決策</button>
+              <button data-filter="action">待辦</button>
+            </div>
+          </div>
+          <div class="transcript-list" id="transcriptList" data-testid="transcript-list"></div>
+          <form class="composer" id="composer">
+            <select id="speakerSelect" aria-label="講者"></select>
+            <input id="lineInput" placeholder="手動加入一句逐字稿" />
+            <button class="primary-button icon-only" title="送出">↵</button>
+          </form>
+        </section>
+      </main>
+
+      <aside class="insights" aria-label="會議洞察">
+        <section class="panel score-panel">
+          <p class="eyebrow">會議狀態</p>
+          <div class="score-row">
+            <div>
+              <strong id="talkRatio">68%</strong>
+              <span>討論密度</span>
+            </div>
+            <div>
+              <strong id="actionCount">0</strong>
+              <span>待辦</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>AI 摘要</h2>
+            <span class="mini-label" id="summaryState">未產生</span>
+          </div>
+          <p class="summary-copy" id="summaryCopy">
+            逐字稿會在這裡整理成重點摘要。
+          </p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>決策</h2>
+            <span class="mini-label" id="decisionCount">0</span>
+          </div>
+          <ul class="insight-list" id="decisionList"></ul>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>待辦</h2>
+            <span class="mini-label" id="todoCount">0</span>
+          </div>
+          <ul class="insight-list tasks" id="todoList"></ul>
+        </section>
+      </aside>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
