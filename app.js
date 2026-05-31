@@ -45,13 +45,19 @@ const state = {
   filter: "all",
   recognition: null,
   mediaStream: null,
+  mediaRecorder: null,
+  audioChunks: [],
   audioContext: null,
   analyser: null,
   timerId: null,
   demoId: null,
+  recordings: [],
 };
 
 const STORAGE_KEY = "meetnote-ai-session-v1";
+const DB_NAME = "meetnote-ai-db";
+const DB_VERSION = 1;
+const RECORDING_STORE = "recordings";
 
 const els = {
   statusPill: document.querySelector("#statusPill"),
@@ -66,6 +72,8 @@ const els = {
   languageSelect: document.querySelector("#languageSelect"),
   speakerList: document.querySelector("#speakerList"),
   addSpeakerButton: document.querySelector("#addSpeakerButton"),
+  recordingList: document.querySelector("#recordingList"),
+  recordingCount: document.querySelector("#recordingCount"),
   speakerSelect: document.querySelector("#speakerSelect"),
   transcriptList: document.querySelector("#transcriptList"),
   composer: document.querySelector("#composer"),
@@ -127,7 +135,10 @@ function renderSpeakers() {
             <span class="swatch" style="background:${speaker.color}"></span>
             <span>${speaker.name}</span>
           </div>
-          <span class="mini-label">${speaker.role}</span>
+          <div class="speaker-actions">
+            <span class="mini-label">${speaker.role}</span>
+            <button class="icon-button" data-edit-speaker="${speaker.id}" title="編輯講者">✎</button>
+          </div>
         </div>
       `,
     )
@@ -136,6 +147,85 @@ function renderSpeakers() {
   els.speakerSelect.innerHTML = speakers
     .map((speaker) => `<option value="${speaker.id}">${speaker.name}</option>`)
     .join("");
+}
+
+function openDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(RECORDING_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveRecordingBlob(id, blob) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RECORDING_STORE, "readwrite");
+    tx.objectStore(RECORDING_STORE).put(blob, id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getRecordingBlob(id) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RECORDING_STORE, "readonly");
+    const request = tx.objectStore(RECORDING_STORE).get(id);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function deleteRecordingBlob(id) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RECORDING_STORE, "readwrite");
+    tx.objectStore(RECORDING_STORE).delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function renderRecordings() {
+  els.recordingCount.textContent = state.recordings.length;
+  if (!state.recordings.length) {
+    els.recordingList.innerHTML = `<div class="recording-item"><span class="recording-meta">停止錄音後會出現在這裡。</span></div>`;
+    return;
+  }
+
+  els.recordingList.innerHTML = state.recordings
+    .map(
+      (recording) => `
+        <div class="recording-item" data-recording-id="${recording.id}">
+          <strong>${recording.title}</strong>
+          <span class="recording-meta">${recording.createdAt} · ${recording.duration}</span>
+          <div class="recording-actions">
+            <audio controls preload="metadata"></audio>
+            <a href="#" download="${recording.title}.webm">下載</a>
+            <button class="ghost-button small" data-delete-recording="${recording.id}">刪除</button>
+          </div>
+        </div>
+      `,
+    )
+    .join("");
+
+  await Promise.all(
+    state.recordings.map(async (recording) => {
+      const item = els.recordingList.querySelector(`[data-recording-id="${recording.id}"]`);
+      const audio = item?.querySelector("audio");
+      const link = item?.querySelector("a");
+      if (!audio || !link) return;
+      const blob = await getRecordingBlob(recording.id);
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      audio.src = url;
+      link.href = url;
+    }),
+  );
 }
 
 function saveSession() {
@@ -147,6 +237,7 @@ function saveSession() {
     summary: els.summaryCopy.textContent,
     summaryState: els.summaryState.textContent,
     elapsed: state.elapsed,
+    recordings: state.recordings,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -172,6 +263,9 @@ function loadSession() {
     if (Number.isFinite(data.elapsed)) {
       state.elapsed = data.elapsed;
       els.timer.textContent = formatTime(state.elapsed);
+    }
+    if (Array.isArray(data.recordings)) {
+      state.recordings = data.recordings;
     }
   } catch (error) {
     localStorage.removeItem(STORAGE_KEY);
@@ -288,15 +382,34 @@ function setRecordingUi(isRecording) {
 }
 
 async function startRecording() {
-  setRecordingUi(true);
-  state.startedAt = Date.now() - state.elapsed * 1000;
-  state.timerId = window.setInterval(() => {
-    state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
-    els.timer.textContent = formatTime(state.elapsed);
-  }, 250);
-
   try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast("這個瀏覽器不支援錄音，請用 Safari 或 Chrome 的 HTTPS 網址。");
+      return;
+    }
     state.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    setRecordingUi(true);
+    state.elapsed = 0;
+    state.startedAt = Date.now();
+    els.timer.textContent = "00:00";
+    state.timerId = window.setInterval(() => {
+      state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
+      els.timer.textContent = formatTime(state.elapsed);
+    }, 250);
+
+    state.audioChunks = [];
+    if (window.MediaRecorder) {
+      const recorder = new MediaRecorder(state.mediaStream);
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) state.audioChunks.push(event.data);
+      };
+      recorder.onstop = saveCurrentRecording;
+      recorder.start();
+      state.mediaRecorder = recorder;
+    } else {
+      showToast("這個瀏覽器可以開麥克風，但不支援儲存音檔。");
+    }
+
     state.audioContext = new AudioContext();
     const source = state.audioContext.createMediaStreamSource(state.mediaStream);
     state.analyser = state.audioContext.createAnalyser();
@@ -304,7 +417,8 @@ async function startRecording() {
     startSpeechRecognition();
     showToast("已連接麥克風，會嘗試即時轉錄。");
   } catch (error) {
-    showToast("瀏覽器沒有取得麥克風，仍可用範例或手動輸入。");
+    setRecordingUi(false);
+    showToast("沒有取得麥克風權限，請確認使用 HTTPS 並允許麥克風。");
   }
 }
 
@@ -312,10 +426,39 @@ function stopRecording() {
   setRecordingUi(false);
   window.clearInterval(state.timerId);
   state.timerId = null;
+  if (state.mediaRecorder?.state === "recording") {
+    state.mediaRecorder.stop();
+  }
   state.mediaStream?.getTracks().forEach((track) => track.stop());
   state.audioContext?.close();
   state.recognition?.stop();
   showToast("錄音已停止。");
+}
+
+async function saveCurrentRecording() {
+  if (!state.audioChunks.length) return;
+  const mimeType = state.mediaRecorder?.mimeType || "audio/webm";
+  const blob = new Blob(state.audioChunks, { type: mimeType });
+  const id = crypto.randomUUID();
+  const recording = {
+    id,
+    title: `${els.meetingTitle.value || "未命名會議"} ${new Date().toLocaleTimeString("zh-TW", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`,
+    createdAt: new Date().toLocaleString("zh-TW", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    duration: formatTime(state.elapsed),
+  };
+  await saveRecordingBlob(id, blob);
+  state.recordings.unshift(recording);
+  saveSession();
+  renderRecordings();
+  showToast("已新增一筆錄音檔。");
 }
 
 function startSpeechRecognition() {
@@ -413,6 +556,33 @@ els.addSpeakerButton.addEventListener("click", () => {
   saveSession();
 });
 
+els.speakerList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-speaker]");
+  if (!button) return;
+  const speaker = getSpeaker(button.dataset.editSpeaker);
+  const name = prompt("講者名稱", speaker.name);
+  if (name === null) return;
+  const role = prompt("角色/職稱", speaker.role);
+  if (role === null) return;
+  speaker.name = name.trim() || speaker.name;
+  speaker.role = role.trim() || speaker.role;
+  renderSpeakers();
+  renderTranscript();
+  updateInsights(false);
+  saveSession();
+});
+
+els.recordingList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-recording]");
+  if (!button) return;
+  const id = button.dataset.deleteRecording;
+  state.recordings = state.recordings.filter((recording) => recording.id !== id);
+  await deleteRecordingBlob(id);
+  saveSession();
+  renderRecordings();
+  showToast("錄音檔已刪除。");
+});
+
 document.querySelectorAll(".segmented button").forEach((button) => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".segmented button").forEach((item) => item.classList.remove("active"));
@@ -436,6 +606,7 @@ loadSession();
 renderSpeakers();
 renderTranscript();
 updateInsights(false);
+renderRecordings();
 drawIdleWave();
 
 if ("serviceWorker" in navigator) {
