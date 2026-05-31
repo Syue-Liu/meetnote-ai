@@ -6,7 +6,7 @@
     <title>MeetNote AI</title>
     <meta name="theme-color" content="#15201d" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
   </head>
   <body>
     <div class="app-shell">
@@ -62,6 +62,14 @@
             <button class="icon-button" id="addSpeakerButton" title="新增講者">＋</button>
           </div>
           <div id="speakerList"></div>
+        </section>
+
+        <section class="panel compact-list">
+          <div class="panel-heading">
+            <h2>錄音檔</h2>
+            <span class="mini-label" id="recordingCount">0</span>
+          </div>
+          <div id="recordingList"></div>
         </section>
       </aside>
 
@@ -142,6 +150,6 @@
     </div>
 
     <div class="toast" id="toast" role="status"></div>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=2"></script>
   </body>
 </html>
